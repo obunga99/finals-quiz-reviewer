@@ -6,7 +6,8 @@
 
   var STYLES = {
     mc: { label: "Multiple Choice", blurb: "Pick the right answer from four choices." },
-    id: { label: "Identification", blurb: "Type the answer yourself. Spelling is forgiving." }
+    id: { label: "Identification", blurb: "Type the answer yourself. Spelling is forgiving." },
+    tb: { label: "Fill in the Table", blurb: "Complete the journal entries, worksheet and statements from the problem." }
   };
 
   var state = {
@@ -82,7 +83,18 @@
     return prev[n];
   }
 
+  // "₱4,570.00", "4570" and "(4,570)" all become 4570; anything else becomes null
+  function toNum(s) {
+    var t = String(s).replace(/[₱$,\s]/g, "").replace(/^\((.*)\)$/, "$1");
+    return /^-?\d+(\.\d+)?$/.test(t) ? Number(t) : null;
+  }
+
   function isCorrect(given, item) {
+    var expectedNum = toNum(item.a);
+    if (expectedNum != null) {
+      var givenNum = toNum(given);
+      if (givenNum != null) return Math.abs(givenNum - expectedNum) < 0.005;
+    }
     var g = norm(given);
     if (!g) return false;
     var candidates = [item.a].concat(item.alt || []).map(norm);
@@ -203,6 +215,20 @@
       ]);
       styleGrid.append(card);
     });
+    if (subject.tables && subject.tables.length) {
+      styleGrid.append(
+        el("button", {
+          class: "card style-card", type: "button",
+          onclick: function () { showTables(subject); }
+        }, [
+          el("h3", { text: STYLES.tb.label }),
+          el("p", { class: "desc", text: STYLES.tb.blurb }),
+          el("div", { class: "meta" }, [
+            el("span", { class: "badge", text: subject.tables.length + " tables" })
+          ])
+        ])
+      );
+    }
     wrap.append(styleGrid);
 
     // topics
@@ -453,6 +479,191 @@
       wrap.append(review);
     }
     mount(wrap);
+  }
+
+  /* ---------- fill-in-the-table mode ---------- */
+
+  function fmtMoney(n) {
+    return Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function isBlankExpected(cell) { return cell.n === "" || cell.n === 0; }
+
+  function cellOk(cell, val) {
+    var v = String(val == null ? "" : val).trim();
+    if (cell.sel != null) return v === cell.sel;
+    if (isBlankExpected(cell)) return v === "" || v === "-" || toNum(v) === 0;
+    var n = toNum(v);
+    return n != null && Math.abs(n - cell.n) < 0.005;
+  }
+
+  function tbFor(subject) {
+    if (!state.tb || state.tb.subject !== subject) {
+      state.tb = { subject: subject, active: 0, values: {}, checked: {}, revealed: {}, summary: {}, problemOpen: false };
+    }
+    return state.tb;
+  }
+
+  function showTables(subject, activeIdx) {
+    state.screen = "tables";
+    state.style = "tb";
+    var tb = tbFor(subject);
+    if (activeIdx != null) tb.active = activeIdx;
+    var table = subject.tables[tb.active];
+
+    var wrap = el("div", { class: "tables" });
+    wrap.append(
+      el("button", { class: "crumb", type: "button", text: "← Back", onclick: function () { showSetup(subject); } }),
+      el("h2", { class: "tbl-title", text: subject.title + ": Fill in the Table" })
+    );
+
+    // the problem statement
+    if (subject.problem) {
+      var p = subject.problem;
+      var details = el("details", { class: "problem" }, [
+        el("summary", { text: "Show the problem (trial balance and adjustments)" }),
+        el("p", { class: "ptitle", text: p.title }),
+        el("div", { class: "table-wrap" }, [
+          el("table", { class: "ft static" }, [
+            el("thead", {}, [el("tr", {}, ["Account", "Debit", "Credit"].map(function (h, i) {
+              return el("th", { class: i ? "num" : "", scope: "col", text: h });
+            }))]),
+            el("tbody", {}, p.tb.map(function (r, ri) {
+              return el("tr", { class: ri === p.tb.length - 1 ? "total" : "" }, r.map(function (c, i) {
+                return el("td", { class: i ? "num" : "", text: c });
+              }));
+            }))
+          ])
+        ]),
+        el("p", { class: "pdata-h", text: "Data for the year-end adjustments:" }),
+        el("ul", { class: "pdata" }, p.data.map(function (d) { return el("li", { text: d }); }))
+      ]);
+      if (tb.problemOpen) details.setAttribute("open", "");
+      details.addEventListener("toggle", function () { tb.problemOpen = details.open; });
+      wrap.append(details);
+    }
+
+    // tabs
+    var tabs = el("div", { class: "chips tabs", role: "group", "aria-label": "Tables" });
+    subject.tables.forEach(function (t, i) {
+      tabs.append(el("button", {
+        class: "chip", type: "button", "aria-pressed": i === tb.active ? "true" : "false",
+        text: t.title.replace(/^\d+\.\s*/, i + 1 + ". ").split(":")[0].split("(")[0].trim(),
+        onclick: function () { showTables(subject, i); }
+      }));
+    });
+    wrap.append(tabs);
+
+    wrap.append(renderTable(subject, table, tb));
+    mount(wrap);
+
+    // on narrow screens a table can be wider than the card: tell the student to swipe
+    var tw = wrap.querySelector(".tbl-card .table-wrap");
+    var hint = wrap.querySelector(".scroll-hint");
+    if (tw && hint && tw.scrollWidth > tw.clientWidth + 2) hint.hidden = false;
+  }
+
+  function renderTable(subject, table, tb) {
+    var values = tb.values[table.id] = tb.values[table.id] || {};
+    var checked = !!tb.checked[table.id];
+    var revealed = !!tb.revealed[table.id];
+
+    var card = el("section", { class: "card tbl-card" });
+    card.append(el("h3", { text: table.title }), el("p", { class: "desc", text: table.intro || "" }));
+
+    var thead = el("thead", {}, [el("tr", {}, table.columns.map(function (h, i) {
+      return el("th", { class: i && h !== "Account" ? "num" : "", scope: "col", text: h });
+    }))]);
+
+    var tbody = el("tbody");
+    var inputs = []; // { cell, key, node }
+
+    table.rows.forEach(function (row, ri) {
+      if (row.header) {
+        tbody.append(el("tr", { class: "sec" }, [el("th", { colspan: String(table.columns.length), scope: "colgroup", text: row.header })]));
+        return;
+      }
+      var tr = el("tr", { class: row.cls || "" });
+      row.cells.forEach(function (cell, ci) {
+        var key = ri + "-" + ci;
+        if (typeof cell === "string") {
+          tr.append(el(ci === 0 ? "th" : "td", { class: ci ? "num" : "", scope: ci === 0 ? "row" : false, text: cell }));
+          return;
+        }
+        var td = el("td", { class: cell.sel != null ? "acct" : "num" });
+        var node;
+        if (cell.sel != null) {
+          node = el("select", { "aria-label": "Account for row " + (ri + 1) }, [el("option", { value: "", text: "Choose account…" })]
+            .concat(subject.accounts.map(function (a) { return el("option", { value: a, text: a }); })));
+          node.value = revealed ? cell.sel : (values[key] || "");
+        } else {
+          node = el("input", {
+            type: "text", inputmode: "decimal", autocomplete: "off", spellcheck: "false",
+            "aria-label": table.columns[ci] + ", " + (row.cells[0] || "row " + (ri + 1))
+          });
+          node.value = revealed ? (isBlankExpected(cell) ? "" : fmtMoney(cell.n)) : (values[key] || "");
+        }
+        if (revealed) node.disabled = true;
+        node.addEventListener("input", function () { values[key] = node.value; });
+        node.addEventListener("change", function () { values[key] = node.value; });
+        td.append(node);
+
+        if (checked && !revealed) {
+          var ok = cellOk(cell, values[key]);
+          node.classList.add(ok ? "ok" : "bad");
+          if (!ok) {
+            var shown = cell.sel != null ? cell.sel : (isBlankExpected(cell) ? "leave blank" : fmtMoney(cell.n));
+            td.append(el("span", { class: "exp", text: "→ " + shown }));
+          }
+        }
+        inputs.push({ cell: cell, key: key });
+        tr.append(td);
+      });
+      tbody.append(tr);
+    });
+
+    var tableEl = el("table", { class: "ft" + (table.wide ? " wide" : "") }, [thead, tbody]);
+    card.append(
+      el("div", { class: "table-wrap" }, [tableEl]),
+      el("p", { class: "scroll-hint", hidden: true, text: "Swipe sideways to see all the columns →" })
+    );
+
+    var summary = el("p", { class: "tbl-summary", "aria-live": "polite" });
+    if (revealed) summary.textContent = "Answers shown. Press Reset to try again.";
+    else if (checked) {
+      var total = 0, right = 0, stray = 0;
+      inputs.forEach(function (c) {
+        var ok = cellOk(c.cell, values[c.key]);
+        if (isBlankExpected(c.cell)) { if (!ok) stray++; return; }
+        total++; if (ok) right++;
+      });
+      summary.textContent = right + " of " + total + " correct" + (stray ? " (" + stray + " cell" + (stray === 1 ? "" : "s") + " should be blank)" : "") +
+        (right === total && !stray ? ". Perfect!" : ". Wrong cells show the answer.");
+      summary.className = "tbl-summary " + (right === total && !stray ? "good" : "bad");
+    }
+
+    var actions = el("div", { class: "actions" }, [
+      el("button", {
+        class: "btn primary", type: "button", text: "Check answers", disabled: revealed,
+        onclick: function () { tb.checked[table.id] = true; showTables(subject); }
+      }),
+      el("button", {
+        class: "btn", type: "button", text: "Show answers", disabled: revealed,
+        onclick: function () { tb.revealed[table.id] = true; showTables(subject); }
+      }),
+      el("button", {
+        class: "btn ghost", type: "button", text: "Reset",
+        onclick: function () { delete tb.values[table.id]; delete tb.checked[table.id]; delete tb.revealed[table.id]; showTables(subject); }
+      })
+    ]);
+
+    var nav = el("div", { class: "actions" });
+    var idx = subject.tables.indexOf(table);
+    if (idx > 0) nav.append(el("button", { class: "btn ghost", type: "button", text: "← Previous table", onclick: function () { showTables(subject, idx - 1); } }));
+    if (idx < subject.tables.length - 1) nav.append(el("button", { class: "btn ghost", type: "button", text: "Next table →", onclick: function () { showTables(subject, idx + 1); } }));
+
+    card.append(actions, summary, nav);
+    return card;
   }
 
   /* number keys 1-4 pick a multiple choice answer */
