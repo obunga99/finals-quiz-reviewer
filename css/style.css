@@ -181,3 +181,59 @@ button.card:hover { border-color: var(--accent); transform: translateY(-1px); }
 .miss .right { color: var(--good); font-size: 0.92rem; margin-top: 2px; }
 
 .empty { padding: 24px; text-align: center; color: var(--muted); }
+
+/* ---------- Fill in the table ---------- */
+.style-grid .style-card:nth-child(3) { grid-column: 1 / -1; }
+
+.tbl-title { font-size: 1.35rem; letter-spacing: -0.01em; margin-bottom: 16px; }
+
+.problem { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 4px 16px 14px; margin-bottom: 18px; }
+.problem summary { cursor: pointer; font-weight: 650; padding: 12px 0; }
+.problem .ptitle { font-weight: 600; margin-bottom: 10px; font-size: 0.95rem; }
+.problem .pdata-h { margin-top: 14px; font-weight: 600; font-size: 0.95rem; }
+.problem .pdata { margin: 6px 0 0; padding-left: 20px; color: var(--muted); font-size: 0.95rem; }
+
+.tabs { margin-bottom: 16px; }
+
+.tbl-card h3 { font-size: 1.1rem; }
+.table-wrap { overflow-x: auto; margin-top: 14px; border: 1px solid var(--line); border-radius: 10px; }
+
+.ft { border-collapse: collapse; width: 100%; font-size: 0.92rem; }
+.ft th, .ft td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.ft thead th { background: var(--accent-soft); font-size: 0.8rem; white-space: nowrap; }
+.ft th[scope="row"] { font-weight: 500; }
+.ft .num { text-align: right; }
+.ft thead .num { text-align: right; }
+.ft tbody tr:last-child > * { border-bottom: 0; }
+.ft tr.total > * { font-weight: 700; border-top: 1.5px solid var(--text); }
+.ft tr.sec th { background: transparent; color: var(--accent); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; padding-top: 14px; }
+.ft.wide { min-width: 720px; }
+.ft.wide th[scope="row"], .ft.wide thead th:first-child { position: sticky; left: 0; background: var(--surface); }
+.ft.wide thead th:first-child { background: var(--accent-soft); }
+.ft.wide th[scope="row"] { min-width: 190px; }
+
+.ft input, .ft select {
+  width: 100%; min-width: 92px; padding: 7px 9px; border-radius: 8px;
+  background: var(--bg); border: 1.5px solid var(--line);
+}
+.ft input { text-align: right; font-variant-numeric: tabular-nums; }
+.ft td.acct select { min-width: 220px; text-align: left; }
+.ft input.ok, .ft select.ok { border-color: var(--good); background: var(--good-bg); }
+.ft input.bad, .ft select.bad { border-color: var(--bad); background: var(--bad-bg); }
+.ft input:disabled, .ft select:disabled { opacity: 1; color: var(--good); border-color: var(--good); }
+.ft .exp { display: block; margin-top: 3px; font-size: 0.78rem; color: var(--good); white-space: nowrap; }
+.ft.static { font-variant-numeric: tabular-nums; }
+
+.tbl-summary { margin-top: 14px; font-weight: 600; min-height: 1.5em; }
+.tbl-summary.good { color: var(--good); }
+.tbl-summary.bad { color: var(--bad); }
+.btn:disabled { opacity: 0.5; cursor: default; }
+
+.scroll-hint { margin-top: 8px; font-size: 0.82rem; color: var(--muted); }
+.scroll-hint[hidden] { display: none; }
+@media (max-width: 560px) {
+  .ft th, .ft td { padding: 7px 6px; }
+  .ft input, .ft select { min-width: 84px; padding: 7px 7px; }
+  .ft td.acct select { width: 150px; min-width: 150px; }
+  .ft.wide th[scope="row"] { min-width: 150px; }
+}
